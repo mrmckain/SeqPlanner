@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Sequencing Planner · McKain Research Group</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🧬</text></svg>">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --evergreen: #002400; --black-forest: #273b09; --teal: #007A62; --teal-bright: #00a583; --teal-soft: #e6f2ee;
+    --paper: #f6f7f4; --card: #fff; --ink: #142010; --muted: #5c6b55; --line: #dfe4d8;
+    --danger: #8a2a1f; --danger-soft: #f9ece9; --amber: #8a5a0b; --amber-soft: #fdf3e2; --blue: #1a5fa5; --blue-soft: #e0edfb;
+    --radius: 10px; --font: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    --mono: "SFMono-Regular", "JetBrains Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: var(--font); background: var(--paper); color: var(--ink); line-height: 1.55; -webkit-font-smoothing: antialiased; }
+  a { color: var(--teal); cursor: pointer; }
+  button { font-family: var(--font); cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: #fff; padding: 8px 13px; font-size: 14px; color: var(--ink); }
+  button:hover { background: #f0f2ec; }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--teal); border-color: var(--teal); color: #fff; font-weight: 500; }
+  button.primary:hover { background: var(--teal-bright); border-color: var(--teal-bright); }
+  button.danger { color: var(--danger); border-color: #e3c4bf; }
+  button.sm { padding: 4px 9px; font-size: 12.5px; }
+  input, select, textarea { font-family: var(--font); font-size: 14px; width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(0,122,98,.12); }
+  textarea { min-height: 60px; resize: vertical; }
+  label { font-size: 12.5px; color: var(--muted); display: block; margin-bottom: 4px; font-weight: 500; }
+  code, .mono { font-family: var(--mono); font-size: 12.5px; }
+  .hidden { display: none !important; }
+
+  #login-screen, #pending-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: radial-gradient(1200px 500px at 50% -10%, #06351f 0%, transparent 60%), var(--evergreen); padding: 24px; }
+  .login-card { width: 100%; max-width: 390px; background: var(--card); border-radius: 16px; padding: 30px; box-shadow: 0 24px 60px rgba(0,0,0,.35); }
+  .login-card h1 { font-size: 20px; margin: 6px 0 4px; color: var(--evergreen); }
+  .login-card .eyebrow { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--teal); font-weight: 600; }
+  .lede { font-size: 13.5px; color: var(--muted); margin: 0 0 18px; }
+  .field { margin-bottom: 12px; }
+  .msg { font-size: 13px; margin-top: 10px; min-height: 18px; }
+  .msg.error { color: var(--danger); } .msg.ok { color: var(--teal); }
+  .link-btn { background: none; border: none; color: var(--teal); padding: 0; margin-top: 14px; font-size: 13px; text-decoration: underline; }
+  .link-btn:hover { background: none; }
+
+  header.topbar { background: var(--evergreen); color: #fff; padding: 0 22px; height: 58px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 20; }
+  .brand .eyebrow { font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: #2fd0ad; }
+  .brand .name { font-weight: 650; font-size: 17px; }
+  .whoami { font-size: 13px; color: #cfe0cf; display: flex; gap: 12px; align-items: center; }
+  .whoami .role { font-size: 10.5px; text-transform: uppercase; letter-spacing: .5px; background: var(--teal); color: #fff; padding: 1px 7px; border-radius: 5px; }
+  .whoami button { background: transparent; color: #d7e7dc; border-color: #ffffff44; padding: 4px 10px; font-size: 12.5px; }
+  nav.tabs { background: var(--black-forest); padding: 0 14px; display: flex; gap: 2px; position: sticky; top: 58px; z-index: 19; overflow-x: auto; }
+  nav.tabs button { background: transparent; border: none; color: #c7d3bb; padding: 12px 15px; font-size: 14px; border-radius: 0; border-bottom: 2px solid transparent; white-space: nowrap; }
+  nav.tabs button:hover { color: #fff; background: rgba(255,255,255,.05); }
+  nav.tabs button.active { color: #fff; border-bottom-color: var(--teal-bright); font-weight: 500; }
+  main { max-width: 1200px; margin: 0 auto; padding: 24px 20px 70px; }
+  .page-head { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; gap: 12px; flex-wrap: wrap; }
+  .page-head h2 { font-size: 20px; margin: 0; color: var(--evergreen); }
+  .page-head p { margin: 2px 0 0; font-size: 13.5px; color: var(--muted); max-width: 760px; }
+  .tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .tools select, .tools input { width: auto; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); margin-bottom: 16px; }
+  .card-head { padding: 13px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .card-head h3 { margin: 0; font-size: 15px; color: var(--evergreen); }
+  .card-body { padding: 16px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+  .grid .full { grid-column: 1 / -1; }
+  .two { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 960px) { .two { grid-template-columns: 1fr; } }
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  thead th { text-align: left; padding: 9px 12px; color: var(--muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: .4px; border-bottom: 1px solid var(--line); background: #fbfcfa; white-space: nowrap; }
+  tbody td { padding: 8px 12px; border-bottom: 1px solid #eef1ea; vertical-align: top; }
+  tr.click { cursor: pointer; } tr.click:hover { background: #f7f9f5; }
+  tr.total td { font-weight: 650; background: #fbfcfa; }
+  .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .hint { font-size: 12.5px; color: var(--muted); margin: 4px 0 0; line-height: 1.5; }
+  .empty { padding: 34px 20px; text-align: center; color: var(--muted); font-size: 14px; }
+  .badge { display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 10px; font-weight: 500; white-space: nowrap; background: #f0f2ec; color: var(--muted); }
+  .badge.ok { background: var(--teal-soft); color: var(--teal); } .badge.warn { background: var(--amber-soft); color: var(--amber); }
+  .badge.bad { background: var(--danger-soft); color: var(--danger); } .badge.blue { background: var(--blue-soft); color: var(--blue); }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .tile { background: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
+  .tile .k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+  .tile .v { font-size: 22px; font-weight: 650; color: var(--evergreen); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .tile .s { font-size: 12px; color: var(--muted); }
+
+  .goal { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; margin-bottom: 8px; background: #fff; }
+  .goal.on { border-color: var(--teal); background: #fbfefd; }
+  .goal-top { display: flex; gap: 10px; align-items: flex-start; }
+  .goal-top input[type=checkbox] { width: 17px; height: 17px; margin-top: 3px; flex: none; accent-color: var(--teal); }
+  .goal-title { font-weight: 600; font-size: 14px; color: var(--evergreen); }
+  .goal-sub { font-size: 12.5px; color: var(--muted); }
+  .goal-edit { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin: 10px 0 2px 27px; }
+  .goal-edit input, .goal-edit select { padding: 6px 8px; font-size: 13px; }
+  .why { margin: 8px 0 0 27px; font-size: 12.5px; color: #3b4a36; background: #f4f7f1; border-radius: 7px; padding: 8px 10px; line-height: 1.5; }
+  .why b { color: var(--evergreen); }
+  .plat { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 4px; margin-left: 6px; vertical-align: 1px; }
+  .plat.illumina { background: #fdeee0; color: #9a4b00; } .plat.pacbio { background: #ece5f8; color: #5b3f86; } .plat.hic { background: #e0edfb; color: #1a5fa5; }
+  .callout { border-left: 3px solid var(--amber); background: var(--amber-soft); padding: 9px 12px; border-radius: 6px; font-size: 13px; margin-bottom: 12px; }
+  .callout.info { border-left-color: var(--teal); background: var(--teal-soft); }
+  .callout.bad { border-left-color: var(--danger); background: var(--danger-soft); }
+
+  .pool-table td { padding: 5px 6px; } .pool-table thead th { padding: 8px 6px; }
+  .pool-table input, .pool-table select { padding: 5px 6px; font-size: 12.5px; }
+  .pool-table input.n { width: 78px; text-align: right; } .pool-table input.seq { width: 112px; font-family: var(--mono); font-size: 11.5px; }
+  .pool-table tr.clash td { background: #fdf3f1; }
+  .pick-list { max-height: 360px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+  .pick-list label { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid #eef1ea; margin: 0; color: var(--ink); font-weight: 400; font-size: 13px; cursor: pointer; }
+  .pick-list label input { width: auto; }
+  .pick-list label:hover { background: #f7f9f5; }
+
+  .modal-bg { position: fixed; inset: 0; background: rgba(10,20,8,.5); display: flex; align-items: flex-start; justify-content: center; padding: 40px 16px; z-index: 60; overflow-y: auto; }
+  .modal { background: #fff; border-radius: 14px; width: 100%; max-width: 580px; box-shadow: 0 30px 70px rgba(0,0,0,.35); }
+  .modal.wide { max-width: 860px; }
+  .modal-head { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; }
+  .modal-head h3 { margin: 0; font-size: 16px; color: var(--evergreen); }
+  .modal-head .x { background: none; border: none; font-size: 20px; color: var(--muted); }
+  .modal-body { padding: 18px 20px; }
+  .modal-foot { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 10px; }
+  .modal-foot .left { margin-right: auto; }
+  .toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--evergreen); color: #fff; padding: 10px 18px; border-radius: 9px; font-size: 14px; opacity: 0; transition: opacity .25s; pointer-events: none; z-index: 80; }
+  .toast.show { opacity: 1; } .toast.err { background: var(--danger); }
+
+  .takes td:first-child { min-width: 210px; }
+  .guide-table td:first-child { font-weight: 600; color: var(--evergreen); min-width: 190px; }
+  .formula { font-family: var(--mono); background: #f4f7f1; padding: 8px 12px; border-radius: 7px; font-size: 13px; margin: 6px 0 10px; }
+
+  .print-only { display: none; }
+  @media print {
+    header.topbar, nav.tabs, .no-print, .toast, #modal-host { display: none !important; }
+    body { background: #fff; } main { padding: 0; max-width: none; }
+    .card { border: none; } .print-only { display: block; }
+    .pool-table input, .pool-table select { border: none; padding: 0; }
+  }
+  @media (max-width: 640px) { header.topbar { padding: 0 12px; } main { padding: 16px 12px 60px; } .whoami .nm { display: none; } }
+</style>
+<script src="/lab-report.js" data-app="SeqPlanner"></script>
+</head>
+<body>
+<div id="login-screen">
+  <div class="login-card">
+    <div class="eyebrow">McKain Research Group</div>
+    <h1>Sequencing Planner</h1>
+    <div class="hidden" id="finish-box">
+      <p class="lede">You're one click from signing in.</p>
+      <button class="primary" style="width:100%" id="finish-btn">Finish signing in</button>
+      <div class="msg" id="finish-msg"></div>
+    </div>
+    <div id="login-form">
+      <p class="lede">Plan how much sequencing a project needs and what it costs, then pool the libraries. Sign in with your Muninn account: enter your email and we'll send you a code.</p>
+      <div class="field"><label for="email">Email</label><input id="email" type="email" placeholder="you@ua.edu" autocomplete="username"></div>
+      <div class="field hidden" id="pw-field"><label for="password">Password</label><input id="password" type="password" autocomplete="current-password"></div>
+      <button class="primary" style="width:100%" id="login-btn">Email me a sign-in code</button>
+      <div class="msg" id="login-msg"></div>
+      <div class="hidden" id="code-box" style="margin-top:12px">
+        <div class="field"><label for="otp-code">Code from the email</label><input id="otp-code" inputmode="numeric" autocomplete="one-time-code" maxlength="10" placeholder="123456"></div>
+        <button class="primary" style="width:100%" id="code-btn">Sign in with code</button>
+      </div>
+      <button class="link-btn" id="pw-toggle">Sign in with a password instead</button>
+    </div>
+  </div>
+</div>
+
+<div id="pending-screen" class="hidden">
+  <div class="login-card">
+    <h1>Almost there</h1>
+    <p class="lede">You're signed in as <strong id="pending-email"></strong>, but an admin needs to approve you first. The Sequencing Planner uses the same accounts as Muninn, so the request goes to Muninn's Manage users page.</p>
+    <div class="field"><label for="pending-name">Your full name</label><input id="pending-name" placeholder="First Last"></div>
+    <button class="primary" style="width:100%" id="pending-save">Request access</button>
+    <div class="msg" id="pending-msg"></div>
+    <button class="link-btn" id="pending-logout">Sign out</button>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <header class="topbar">
+    <div class="brand"><div class="eyebrow">McKain Research Group</div><div class="name">Sequencing Planner</div></div>
+    <div class="whoami"><span class="nm" id="who-name"></span><span class="role" id="who-role"></span>
+      <a href="https://mckainlab.org/Muninn/" style="color:#9fe6cf">Muninn</a><button onclick="doLogout()">Sign out</button></div>
+  </header>
+  <nav class="tabs" id="tabs"></nav>
+  <main id="main"></main>
+</div>
+<div id="modal-host"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = "https://mzawzneyfuxlznukftua.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_oRMONDQM9onsQCZCZ9EKwQ_JDGuOlKB";
+
+let sb = null, currentUser = null, currentRole = null, myName = "";
+const D = { projects: [], prices: [], kits: [], plans: [], pools: [], poolLibs: [], users: [], libs: [], sampleProj: [], qc: [] };
+let tab = "plan";
+
+// ── Helpers ────────────────────────────────────────────────────────────────────────────────────────
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+function toast(msg, err) { const t = document.getElementById("toast"); t.textContent = msg; t.className = "toast show" + (err ? " err" : ""); setTimeout(() => t.className = "toast", 3000); }
+const canWrite = () => currentRole === "admin" || currentRole === "member";
+const isAdmin = () => currentRole === "admin";
+const mine = row => row && (row.created_by === currentUser?.id || isAdmin());
+const fmt = (n, d = 0) => n == null || !isFinite(n) ? "—" : Number(n).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmt1 = n => n == null || !isFinite(n) ? "—" : n >= 100 ? fmt(n, 0) : n >= 10 ? fmt(n, 1) : fmt(n, 2);
+const money = n => n == null || !isFinite(n) ? "—" : "$" + Number(n).toLocaleString("en-US", { maximumFractionDigits: 0 });
+const userName = id => D.users.find(u => u.user_id === id)?.name || "";
+const projName = id => D.projects.find(p => p.project_id === id)?.name || "";
+async function ok(q) { const r = await q; if (r.error) { toast("Could not save: " + r.error.message, true); throw r.error; } return r; }
+async function fetchAll(make) {
+  const out = [];
+  for (let i = 0; ; i += 1000) { const { data, error } = await make().range(i, i + 999); if (error) throw error; out.push(...(data || [])); if (!data || data.length < 1000) return out; }
+}
+function modal(title, body, onSave, saveLabel, opts = {}) {
+  document.getElementById("modal-host").innerHTML = `<div class="modal-bg" id="m-bg"><div class="modal${opts.wide ? " wide" : ""}">
+    <div class="modal-head"><h3>${esc(title)}</h3><button class="x" onclick="closeModal()">×</button></div>
+    <div class="modal-body">${body}<div class="msg" id="m-msg"></div></div>
+    <div class="modal-foot">${opts.left || ""}<button onclick="closeModal()">${onSave ? "Cancel" : "Close"}</button>${onSave ? `<button class="primary" id="m-save">${saveLabel || "Save"}</button>` : ""}</div></div></div>`;
+  if (onSave) document.getElementById("m-save").onclick = async () => { const b = document.getElementById("m-save"); b.disabled = true; try { await onSave(); } finally { if (document.getElementById("m-save")) b.disabled = false; } };
+  document.getElementById("m-bg").onclick = e => { if (e.target.id === "m-bg") closeModal(); };
+}
+function closeModal() { document.getElementById("modal-host").innerHTML = ""; }
+function mErr(t) { const m = document.getElementById("m-msg"); m.className = "msg error"; m.textContent = t; }
+function download(name, text, type = "text/csv") { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type })); a.download = name; a.click(); }
+const csvCell = v => { const s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+
+// ── Sign-in (same accounts and code flow as Muninn and Greenhouse) ──────────────────────────────────
+async function initAuth() {
+  const linkErr = new URLSearchParams(location.hash.slice(1)).get("error_description") || new URLSearchParams(location.search).get("error_description");
+  if (linkErr) { history.replaceState(null, "", location.pathname); const m = document.getElementById("login-msg"); m.className = "msg error"; m.textContent = "That sign-in link didn't work (" + linkErr + "). Request a new code below and type it in instead."; }
+  const qs = new URLSearchParams(location.search), tokenHash = qs.get("token_hash");
+  const linkType = ["email", "magiclink", "signup", "invite", "recovery", "email_change"].includes(qs.get("type")) ? qs.get("type") : "email";
+  if (tokenHash) history.replaceState(null, "", location.pathname);
+  sb = supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+  const { data } = await sb.auth.getSession();
+  if (data.session) await onSignedIn(data.session.user);
+  else if (tokenHash) showFinish(tokenHash, linkType);
+  else resumeSend();
+  sb.auth.onAuthStateChange((event, session) => { if (event === "SIGNED_IN" && session && !currentUser) onSignedIn(session.user); });
+}
+function showFinish(tokenHash, type) {
+  const box = document.getElementById("finish-box"), form = document.getElementById("login-form");
+  box.classList.remove("hidden"); form.classList.add("hidden");
+  document.getElementById("finish-btn").onclick = async () => {
+    const { data, error } = await sb.auth.verifyOtp({ token_hash: tokenHash, type });
+    box.classList.add("hidden"); form.classList.remove("hidden");
+    if (error) { const m = document.getElementById("login-msg"); m.className = "msg error"; m.textContent = "That sign-in link has already been used or has expired. Request a new code below."; resumeSend(); return; }
+    return onSignedIn(data.user);
+  };
+}
+let usePassword = false;
+async function doLogin() {
+  const email = document.getElementById("email").value.trim(), msg = document.getElementById("login-msg");
+  if (!email) { msg.className = "msg error"; msg.textContent = "Enter your email."; return; }
+  if (usePassword) {
+    msg.className = "msg"; msg.textContent = "Signing in…";
+    const { data, error } = await sb.auth.signInWithPassword({ email, password: document.getElementById("password").value });
+    if (error) { msg.className = "msg error"; msg.textContent = error.message; return; }
+    return onSignedIn(data.user);
+  }
+  const wait = sendWait(); if (wait) { showSendWait(wait); return; }
+  msg.className = "msg"; msg.textContent = "Sending…"; document.getElementById("login-btn").disabled = true;
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin + location.pathname } });
+  if (error) {
+    document.getElementById("login-btn").disabled = false; msg.className = "msg error";
+    msg.textContent = error.status === 429 || /rate limit|security purposes/i.test(error.message) ? "Too many emails have been requested just now. If a code already arrived, type it below; otherwise try again in a few minutes." : error.message;
+    if (error.status === 429) { noteSend(email); document.getElementById("code-box").classList.remove("hidden"); startSendTimer(); }
+    return;
+  }
+  noteSend(email); msg.className = "msg ok"; msg.textContent = "Check your email (it can take a minute) and type the code from the newest email below.";
+  document.getElementById("code-box").classList.remove("hidden"); document.getElementById("otp-code").focus(); startSendTimer();
+}
+// One sign-in email per minute and 3 per 30 minutes for each address, shared with Muninn's count
+const SEND_GAP = 60e3, SEND_MAX = 3, SEND_WINDOW = 30 * 60e3, SEND_KEY = "muninn-code-sends";
+function recentSends() { try { return (JSON.parse(localStorage.getItem(SEND_KEY)) || []).filter(x => Date.now() - x.t < SEND_WINDOW); } catch { return []; } }
+function noteSend(email) { const l = recentSends(); l.push({ email, t: Date.now() }); try { localStorage.setItem(SEND_KEY, JSON.stringify(l)); } catch {} }
+function sendWait() {
+  const email = document.getElementById("email").value.trim().toLowerCase(), list = recentSends().filter(x => x.email.toLowerCase() === email);
+  if (!list.length) return 0;
+  let until = list[list.length - 1].t + SEND_GAP, capped = false;
+  if (list.length >= SEND_MAX) { const t = list[list.length - SEND_MAX].t + SEND_WINDOW; if (t > until) { until = t; capped = true; } }
+  return until > Date.now() ? { ms: until - Date.now(), capped } : 0;
+}
+const clock = t => new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+function showSendWait(w) {
+  const msg = document.getElementById("login-msg"); msg.className = "msg error";
+  msg.textContent = w.capped ? `You've asked for ${SEND_MAX} sign-in emails in the last 30 minutes. Use the newest code below, or ask again at ${clock(Date.now() + w.ms)}.` : "A code was just sent. Give it a minute to arrive and type it below.";
+  document.getElementById("code-box").classList.remove("hidden");
+}
+let sendTimer = null;
+function startSendTimer() {
+  clearInterval(sendTimer); const btn = document.getElementById("login-btn");
+  const tick = () => {
+    if (usePassword) { btn.disabled = false; return clearInterval(sendTimer); }
+    const w = sendWait(); if (!w) { btn.disabled = false; btn.textContent = "Email me a sign-in code"; return clearInterval(sendTimer); }
+    btn.disabled = true; btn.textContent = w.capped ? `Send another code at ${clock(Date.now() + w.ms)}` : `Send another code in ${Math.ceil(w.ms / 1000)}s`;
+  };
+  tick(); sendTimer = setInterval(tick, 1000);
+}
+function resumeSend() {
+  const l = recentSends(); if (!l.length) return; const last = l[l.length - 1];
+  const e = document.getElementById("email"); if (!e.value) e.value = last.email;
+  document.getElementById("code-box").classList.remove("hidden");
+  const msg = document.getElementById("login-msg"); if (!msg.textContent) { msg.className = "msg ok"; msg.textContent = `A code was sent to ${last.email} at ${clock(last.t)}. Type the code from the newest email below.`; }
+  startSendTimer();
+}
+async function verifyCode() {
+  const email = document.getElementById("email").value.trim(), token = document.getElementById("otp-code").value.replace(/\D/g, ""), msg = document.getElementById("login-msg");
+  if (!email) { msg.className = "msg error"; msg.textContent = "Enter your email."; return; }
+  if (token.length < 6) { msg.className = "msg error"; msg.textContent = "Enter the code from the email."; return; }
+  msg.className = "msg"; msg.textContent = "Checking…";
+  const { data, error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+  if (error) { msg.className = "msg error"; msg.textContent = error.message + ". Check the code, or request a new one."; return; }
+  msg.textContent = ""; return onSignedIn(data.user);
+}
+function togglePassword() {
+  usePassword = !usePassword;
+  document.getElementById("pw-field").classList.toggle("hidden", !usePassword);
+  document.getElementById("login-btn").textContent = usePassword ? "Sign in" : "Email me a sign-in code";
+  document.getElementById("code-box").classList.add("hidden");
+  if (usePassword) document.getElementById("login-btn").disabled = false; else startSendTimer();
+  document.getElementById("pw-toggle").textContent = usePassword ? "Email me a code instead" : "Sign in with a password instead";
+  document.getElementById("login-msg").textContent = "";
+}
+async function showPending(user) {
+  document.getElementById("login-screen").classList.add("hidden"); document.getElementById("pending-screen").classList.remove("hidden");
+  document.getElementById("pending-email").textContent = user.email;
+  const { data: req } = await sb.from("access_requests").select("name").eq("user_id", user.id).maybeSingle();
+  const msg = document.getElementById("pending-msg");
+  if (req) { document.getElementById("pending-name").value = req.name || ""; msg.className = "msg ok"; msg.textContent = "Request sent. You'll get in once an admin approves it; just reload this page."; }
+  document.getElementById("pending-save").onclick = async () => {
+    const name = document.getElementById("pending-name").value.trim();
+    if (!name) { msg.className = "msg error"; msg.textContent = "Enter your name so the admin knows who you are."; return; }
+    const { error } = await sb.from("access_requests").upsert({ user_id: user.id, email: user.email, name });
+    if (error) { msg.className = "msg error"; msg.textContent = error.message; return; }
+    msg.className = "msg ok"; msg.textContent = "Request sent. You'll get in once an admin approves it; just reload this page.";
+  };
+}
+async function onSignedIn(user) {
+  currentUser = user;
+  const { data: prof } = await sb.from("users").select("name, role").eq("user_id", user.id).maybeSingle();
+  if (!prof) return showPending(user);
+  currentRole = prof.role; myName = prof.name || user.email;
+  document.getElementById("who-name").textContent = myName; document.getElementById("who-role").textContent = currentRole;
+  document.getElementById("login-screen").classList.add("hidden"); document.getElementById("app").classList.remove("hidden");
+  document.getElementById("main").innerHTML = '<div class="empty">Loading…</div>';
+  await loadAll(); render();
+}
+async function doLogout() { await sb.auth.signOut(); location.reload(); }
+
+// ── Data ──────────────────────────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  const get = (t, sel, ord, asc = true) => fetchAll(() => { let q = sb.from(t).select(sel); if (ord) q = q.order(ord, { ascending: asc }); return q; }).catch(e => { console.warn(t, e.message); return []; });
+  [D.projects, D.prices, D.kits, D.plans, D.pools, D.poolLibs, D.users, D.libs, D.sampleProj, D.qc] = await Promise.all([
+    get("projects", "project_id, name, status", "name"),
+    get("seq_prices", "*", "sort"),
+    get("seq_index_kits", "*", "index_id"),
+    get("seq_plans", "*", "updated_at", false),
+    get("seq_pools", "*", "updated_at", false),
+    get("seq_pool_libraries", "*", "sort"),
+    get("users", "user_id, name", "name"),
+    get("libraries", "library_id, library_code, isolation_id, kit, index_i7, index_i5, insert_size, molarity_nm, prep_date, placeholder, na_isolations(sample_id, application, concentration_ng_ul, samples(genus, species))", "library_code"),
+    get("sample_projects", "sample_id, project_id"),
+    get("extraction_facts", "isolation_id, sample_id, na_type, application, concentration_ng_ul, qubit_ng_ul, volume_ul, yield_ng, rin_or_din, fragment_peak_kb, gel_peak_kb, gqn"),
+  ]);
+}
+const libProjects = l => { const s = l.na_isolations?.sample_id; return s ? D.sampleProj.filter(x => x.sample_id === s).map(x => x.project_id) : []; };
+const libSpecies = l => [l.na_isolations?.samples?.genus, l.na_isolations?.samples?.species].filter(Boolean).join(" ");
+
+// ── Shell ─────────────────────────────────────────────────────────────────────────────────────────
+const TABS = [["plan", "Plan sequencing"], ["plans", "Saved plans"], ["pool", "Pooling"], ["guide", "Coverage guide"], ["prices", "Prices & indexes"]];
+function render() {
+  document.getElementById("tabs").innerHTML = TABS.map(([k, l]) => `<button class="${tab === k ? "active" : ""}" onclick="go('${k}')">${l}</button>`).join("");
+  ({ plan: renderPlan, plans: renderPlans, pool: renderPool, guide: renderGuide, prices: renderPrices })[tab]();
+}
+function go(t) { tab = t; render(); window.scrollTo(0, 0); }
+
+// ══ Planning ════════════════════════════════════════════════════════════════════════════════════════
+// Coverage is worked out per haplotype (per chromosome set), then multiplied by ploidy, against the
+// monoploid genome size (1Cx: one chromosome set). A diploid needing 15× per haplotype needs 30× total.
+const GOALS = [
+  { key: "ref_hifi", title: "Reference genome: PacBio HiFi reads", platform: "pacbio", mode: "hap", def: 15, samples: 1,
+    why: "<b>Why this much:</b> HiFi assemblers (hifiasm) give good, contiguous assemblies at about 13–15× per haplotype, so ~30× total for a diploid and ~60× for a tetraploid. More helps phasing in very heterozygous plants; much less leaves gaps.",
+    dna: "High-molecular-weight DNA: most fragments longer than ~15–20 kb, and a few micrograms per library (check the current PacBio protocol). Check it on a gel or Femto Pulse first." },
+  { key: "ref_hic", title: "Reference genome: Hi-C / Omni-C scaffolding", platform: "hic", mode: "hap", def: 15, samples: 1,
+    why: "<b>Why this much:</b> Hi-C links contigs into chromosomes. The usual target is ~100 million read pairs per Gb of genome for a diploid (~30× total), more for polyploids. It's sequenced on Illumina.",
+    dna: "Starts from flash-frozen, crosslinked tissue, not extracted DNA. Young leaves from the same individual as the HiFi DNA." },
+  { key: "kmer", title: "Genome size & heterozygosity from k-mers", platform: "illumina", mode: "hap", def: 25, samples: 1,
+    why: "<b>Why this much:</b> GenomeScope and Smudgeplot need clean k-mer peaks: ~25× per haplotype (50× for a diploid) gives clear peaks for genome size, heterozygosity and ploidy.",
+    dna: "Standard Illumina library: tens to a few hundred ng of good-quality DNA." },
+  { key: "reseq", title: "Whole-genome resequencing: confident genotypes", platform: "illumina", mode: "hap", def: 15, samples: 10,
+    why: "<b>Why this much:</b> to call a heterozygous site you need to see both alleles several times. ~15× per haplotype (30× for a diploid) calls most genotypes confidently. For polyploids, coverage scales with the number of copies.",
+    dna: "Standard Illumina library: tens to a few hundred ng of good-quality DNA per sample." },
+  { key: "lowcov", title: "Population genomics at low coverage", platform: "illumina", mode: "hap", def: 2, samples: 48,
+    why: "<b>Why this much:</b> with many individuals, 1–5× each is enough for allele frequencies, PCA and admixture using genotype likelihoods (ANGSD). You can't trust single genotypes at this depth: spend on more individuals instead of more coverage.",
+    dna: "Small inputs work: low-input or tagmentation libraries from a few ng." },
+  { key: "skim", title: "Genome skimming: plastome, mitogenome, rDNA", platform: "illumina", mode: "gb", def: 2, samples: 24,
+    why: "<b>Why this much:</b> plastomes and rDNA are present in many copies per cell, so even 1–2 Gb of data per sample gives deep coverage of them. Good for phylogenetics and barcoding, including herbarium samples.",
+    dna: "Works with degraded herbarium DNA: a few ng to tens of ng." },
+  { key: "capture", title: "Target capture (e.g. Angiosperms353)", platform: "illumina", mode: "mpairs", def: 2, samples: 96,
+    why: "<b>Why this much:</b> capture enriches a few hundred genes, so ~1–3 million read pairs per sample is typically enough. Capture efficiency varies, so plan for some samples needing more.",
+    dna: "Tens to ~200 ng; works with herbarium DNA. Bait kit costs aren't included here." },
+  { key: "rnaseq", title: "RNA-seq: gene expression", platform: "illumina", mode: "mpairs", def: 25, samples: 12,
+    why: "<b>Why this much:</b> ~20–30 million read pairs per sample counts most expressed genes. Biological replicates (at least 3 per condition) matter more than extra depth.",
+    dna: "Total RNA, RIN of 7 or more; flash-frozen tissue." },
+  { key: "rna_annot", title: "RNA-seq: transcriptome / genome annotation", platform: "illumina", mode: "mpairs", def: 60, samples: 4,
+    why: "<b>Why this much:</b> assembling transcripts and finding rare isoforms needs deeper data (~50–100 million pairs), ideally from several tissues.",
+    dna: "Total RNA, RIN of 7 or more, from several tissues." },
+  { key: "methyl", title: "Methylation: EM-seq or bisulfite", platform: "illumina", mode: "hap", def: 15, samples: 6,
+    why: "<b>Why this much:</b> methylation is measured as a percentage at each cytosine, so each site needs ~10–15 reads per haplotype to estimate it well. Plants also methylate CHG and CHH, which adds to the analysis but not the depth.",
+    dna: "~100–200 ng of good-quality DNA per sample." },
+  { key: "custom", title: "Something else", platform: "illumina", mode: "x", def: 10, samples: 1, custom: true,
+    why: "Set your own coverage (× of the 1Cx genome, all copies together) and platform.", dna: "" },
+];
+const MODE_LABEL = { hap: "× per haplotype", x: "× total", gb: "Gb per sample", mpairs: "M read pairs per sample" };
+const PLAT = { illumina: "Illumina", pacbio: "PacBio HiFi", hic: "Hi-C" };
+const seqPlat = p => p === "hic" ? "illumina" : p;
+const DEFAULT_EXTRA = { illumina: 20, pacbio: 10 };
+
+function blankPlan() {
+  return { plan_id: null, name: "", project_id: "", organism: "", size: "", unit: "Mb", ploidy: 2, extra: { ...DEFAULT_EXTRA },
+    sel: {}, goals: Object.fromEntries(GOALS.map(g => [g.key, { on: false, samples: g.samples, target: g.def, platform: g.platform }])), notes: "", status: "draft", created_by: null };
+}
+let P = blankPlan();
+const seqRows = plat => D.prices.filter(r => r.category === "sequencing" && r.platform === plat && r.active);
+const libRow = plat => D.prices.find(r => r.category === "library" && r.platform === plat && r.active);
+const selRow = plat => D.prices.find(r => r.price_id === +P.sel[plat]) || seqRows(plat)[0];
+// Monoploid genome size in Gb
+function genomeGb() {
+  const v = Number(P.size); if (!v || v <= 0) return null;
+  if (P.unit === "Gb") return v;
+  if (P.unit === "Mb") return v / 1000;
+  if (P.unit === "pg") return v * 0.978 / Math.max(1, (Number(P.ploidy) || 2) / 2);   // 1C pg → 1Cx Gb
+  return null;
+}
+function calcPlan() {
+  const gs = genomeGb(), ploidy = Number(P.ploidy) || 2, rows = [], need = { illumina: 0, pacbio: 0 };
+  GOALS.forEach(g => {
+    const s = P.goals[g.key]; if (!s?.on) return;
+    const plat = g.custom ? s.platform : g.platform, sp = seqPlat(plat), row = selRow(sp), readLen = row?.read_length || 150;
+    const n = Math.max(0, Math.round(Number(s.samples) || 0)), t = Number(s.target) || 0;
+    let usable = null;
+    if (g.mode === "hap") usable = gs ? gs * t * ploidy : null;
+    else if (g.mode === "x") usable = gs ? gs * t : null;
+    else if (g.mode === "gb") usable = t;
+    else if (g.mode === "mpairs") usable = t * 1e6 * 2 * readLen / 1e9;
+    const extra = Number(P.extra[sp] ?? DEFAULT_EXTRA[sp]) / 100;
+    const raw = usable == null ? null : usable / Math.max(0.05, 1 - extra);
+    const total = raw == null ? null : raw * n;
+    if (total) need[sp] += total;
+    const pairsM = sp === "illumina" && raw ? raw * 1e9 / (2 * readLen) / 1e6 : null;
+    const perUnit = row?.yield_gb && raw ? row.yield_gb / raw : null;   // samples that fit in one lane / cell
+    const cov = gs && usable ? usable / gs : null;                       // total × of 1Cx
+    const hapCov = cov != null ? cov / ploidy : null;
+    const lib = libRow(plat), libCost = lib?.price != null ? lib.price * n : null;
+    const seqCost = row?.price != null && total != null ? (row.unit === "Gb" ? total * row.price : total / row.yield_gb * row.price) : null;
+    rows.push({ g, s, plat, sp, row, n, usable, raw, total, pairsM, perUnit, cov, hapCov, lib, libCost, seqCost });
+  });
+  // Whole lanes / cells: data from all goals on a platform shares them
+  const plats = ["illumina", "pacbio"].filter(p => need[p] > 0).map(p => {
+    const row = selRow(p), units = row?.yield_gb ? need[p] / row.yield_gb : null;
+    const whole = row?.unit === "Gb" ? units : units != null ? Math.ceil(units - 1e-9) : null;
+    return { p, row, gb: need[p], units, whole, cost: row?.price != null && whole != null ? whole * row.price : null };
+  });
+  const libTotal = rows.reduce((t, r) => t + (r.libCost || 0), 0), seqTotal = plats.reduce((t, x) => t + (x.cost || 0), 0);
+  const missing = [...new Set([...plats.filter(x => x.row?.price == null).map(x => x.row?.name || PLAT[x.p] + " sequencing"), ...rows.filter(r => r.lib && r.lib.price == null).map(r => r.lib.name)])];
+  return { gs, ploidy, rows, plats, libTotal, seqTotal, total: libTotal + seqTotal, missing };
+}
+
+function renderPlan() {
+  const m = document.getElementById("main");
+  const editable = !P.plan_id || mine(P);
+  const opts = (plat) => seqRows(plat).map(r => `<option value="${r.price_id}"${selRow(plat)?.price_id === r.price_id ? " selected" : ""}>${esc(r.name)}</option>`).join("");
+  m.innerHTML = `
+    <div class="page-head"><div><h2>${P.plan_id ? esc(P.name || "Plan") : "Plan sequencing"}</h2>
+      <p>Pick what the project needs to answer. The planner works out how much data that takes, how many lanes or SMRT Cells, what it costs, and what DNA you need. Every number is editable.</p></div>
+      <div class="tools no-print">${P.plan_id ? `<span class="badge blue">Saved · ${esc(P.status)}</span>` : ""}
+        <button onclick="newPlan()">New plan</button>${canWrite() && editable ? `<button class="primary" onclick="savePlan()">${P.plan_id ? "Save changes" : "Save plan"}</button>` : ""}
+        <button onclick="window.print()">Print</button></div></div>
+    ${P.plan_id && !editable ? `<div class="callout info">This is ${esc(userName(P.created_by) || "someone else")}'s plan. You can try changes here, but only they (or an admin) can save it. Use "New plan" to start your own.</div>` : ""}
+    <div class="two">
+      <div>
+        <div class="card"><div class="card-head"><h3>1 · The organism</h3></div><div class="card-body">
+          <div class="grid">
+            <div class="full"><label>Plan name</label><input id="p-name" value="${esc(P.name)}" placeholder="e.g. Rivercane reference genome + population resequencing"></div>
+            <div><label>Muninn project</label><select id="p-proj"><option value="">None</option>${D.projects.map(p => `<option value="${p.project_id}"${P.project_id === p.project_id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+            <div><label>Organism</label><input id="p-org" value="${esc(P.organism)}" placeholder="Arundinaria gigantea"></div>
+            <div><label>Genome size (one chromosome set)</label><div style="display:flex;gap:6px"><input id="p-size" type="number" min="0" step="any" value="${esc(P.size)}" placeholder="e.g. 2100">
+              <select id="p-unit" style="width:auto">${["Mb", "Gb", "pg"].map(u => `<option${P.unit === u ? " selected" : ""}>${u}</option>`).join("")}</select></div></div>
+            <div><label>Ploidy (copies of each chromosome)</label><input id="p-ploidy" type="number" min="1" max="20" step="1" value="${esc(P.ploidy)}"></div>
+          </div>
+          <p class="hint">${P.unit === "pg" ? "In pg, enter the <b>1C value</b> (from flow cytometry or the Kew C-value database); it's converted to one chromosome set using the ploidy. 1 pg ≈ 978 Mb." : "Use the size of <b>one chromosome set</b> (monoploid, 1Cx): roughly the size of the assembly you'd expect. For a C-value in picograms, switch the unit to pg."}
+            ${genomeGb() ? ` That's <b>${fmt(genomeGb() * 1000)} Mb</b> per set; all ${esc(P.ploidy)} copies together are ${fmt(genomeGb() * 1000 * (Number(P.ploidy) || 2))} Mb.` : ""}</p>
+        </div></div>
+        <div class="card"><div class="card-head"><h3>2 · What do you want to answer?</h3><span class="hint">Tick everything the project needs</span></div><div class="card-body" id="goals">
+          ${GOALS.map(g => goalHtml(g)).join("")}
+        </div></div>
+        <div class="card"><div class="card-head"><h3>3 · Platforms and losses</h3></div><div class="card-body">
+          <div class="grid">
+            <div><label>Illumina product</label><select id="sel-illumina">${opts("illumina") || "<option>Add a price first</option>"}</select></div>
+            <div><label>PacBio product</label><select id="sel-pacbio">${opts("pacbio") || "<option>Add a price first</option>"}</select></div>
+            <div><label>Illumina extra for losses (%)</label><input id="x-illumina" type="number" min="0" max="80" value="${esc(P.extra.illumina)}"></div>
+            <div><label>PacBio extra for losses (%)</label><input id="x-pacbio" type="number" min="0" max="80" value="${esc(P.extra.pacbio)}"></div>
+          </div>
+          <p class="hint">"Extra for losses" pads the order for duplicates, adapters, low-quality reads and uneven pooling. 15–25% is typical for Illumina; HiFi yield is already filtered, but pooled samples rarely split evenly.</p>
+          <div style="margin-top:10px"><label>Notes</label><textarea id="p-notes" placeholder="Anything the plan depends on: which individual, tissue, deadlines, quotes…">${esc(P.notes)}</textarea></div>
+        </div></div>
+      </div>
+      <div id="plan-out"></div>
+    </div>`;
+  const bind = (id, fn) => { const el = document.getElementById(id); if (el) el.oninput = el.onchange = () => { fn(el.value); drawPlanOut(); }; };
+  bind("p-name", v => P.name = v); bind("p-org", v => P.organism = v); bind("p-notes", v => P.notes = v);
+  bind("p-proj", v => P.project_id = v);
+  ["p-size", "p-unit", "p-ploidy"].forEach(id => { const el = document.getElementById(id); el.onchange = () => { P.size = document.getElementById("p-size").value; P.unit = document.getElementById("p-unit").value; P.ploidy = document.getElementById("p-ploidy").value; renderPlan(); }; });
+  document.getElementById("p-size").oninput = e => { P.size = e.target.value; drawPlanOut(); };
+  bind("sel-illumina", v => P.sel.illumina = v); bind("sel-pacbio", v => P.sel.pacbio = v);
+  bind("x-illumina", v => P.extra.illumina = v); bind("x-pacbio", v => P.extra.pacbio = v);
+  document.querySelectorAll("#goals [data-g]").forEach(el => el.oninput = el.onchange = () => {
+    const s = P.goals[el.dataset.g], f = el.dataset.f;
+    s[f] = el.type === "checkbox" ? el.checked : el.value;
+    if (f === "on") { renderPlan(); return; }
+    drawPlanOut();
+  });
+  drawPlanOut();
+}
+function goalHtml(g) {
+  const s = P.goals[g.key], plat = g.custom ? s.platform : g.platform;
+  return `<div class="goal${s.on ? " on" : ""}"><div class="goal-top"><input type="checkbox" data-g="${g.key}" data-f="on"${s.on ? " checked" : ""} id="g-${g.key}">
+    <label for="g-${g.key}" style="margin:0;cursor:pointer"><span class="goal-title">${esc(g.title)}</span><span class="plat ${plat}">${PLAT[plat]}</span>
+      <div class="goal-sub">${g.mode === "hap" ? `${g.def}× per haplotype` : g.mode === "gb" ? `${g.def} Gb per sample` : g.mode === "mpairs" ? `${g.def} M read pairs per sample` : "Your own coverage"} by default</div></label></div>
+    ${s.on ? `<div class="goal-edit">
+      <div><label>Samples</label><input type="number" min="0" step="1" data-g="${g.key}" data-f="samples" value="${esc(s.samples)}"></div>
+      <div><label>${MODE_LABEL[g.mode]}</label><input type="number" min="0" step="any" data-g="${g.key}" data-f="target" value="${esc(s.target)}"></div>
+      ${g.custom ? `<div><label>Platform</label><select data-g="${g.key}" data-f="platform">${["illumina", "pacbio"].map(p => `<option value="${p}"${s.platform === p ? " selected" : ""}>${PLAT[p]}</option>`).join("")}</select></div>` : ""}
+    </div><div class="why">${g.why}${g.dna ? `<br><b>What you need:</b> ${g.dna}` : ""}</div>` : ""}</div>`;
+}
+function drawPlanOut() {
+  const C = calcPlan(), out = document.getElementById("plan-out"); if (!out) return;
+  const needsSize = C.rows.some(r => ["hap", "x"].includes(r.g.mode)) && !C.gs;
+  out.innerHTML = `
+    <div class="tiles">
+      <div class="tile"><div class="k">Estimated cost</div><div class="v">${C.rows.length ? money(C.total) : "—"}</div><div class="s">${C.missing.length ? "Some prices aren't set yet" : C.rows.length ? `Sequencing ${money(C.seqTotal)} · libraries ${money(C.libTotal)}` : "Tick a goal to start"}</div></div>
+      ${C.plats.map(x => `<div class="tile"><div class="k">${PLAT[x.p]}</div><div class="v">${x.row?.unit === "Gb" ? fmt(x.gb) + " Gb" : `${fmt(x.whole)} ${esc(x.row?.unit || "unit")}${x.whole === 1 ? "" : "s"}`}</div>
+        <div class="s">${fmt(x.gb)} Gb of data${x.units != null && x.row?.unit !== "Gb" ? ` · ${fmt1(x.units)} ${esc(x.row.unit)}s' worth` : ""}</div></div>`).join("")}
+    </div>
+    ${needsSize ? '<div class="callout">Enter the genome size to work out coverage-based goals.</div>' : ""}
+    ${C.missing.length ? `<div class="callout">No price yet for: ${C.missing.map(esc).join(", ")}. ${isAdmin() ? '<a onclick="go(\'prices\')">Add prices</a>.' : "Ask Michael to add it on Prices & indexes."} Costs leave those out.</div>` : ""}
+    <div class="card"><div class="card-head"><h3>What it takes</h3></div>
+      ${C.rows.length ? `<div class="table-wrap"><table class="takes"><thead><tr><th>Goal</th><th class="num">Samples</th><th class="num">Per sample</th><th class="num">Total data</th><th class="num">Fits per unit</th><th class="num">Cost</th></tr></thead><tbody>
+        ${C.rows.map(r => `<tr><td><b>${esc(r.g.title.replace(/^Reference genome: /, "Ref: "))}</b><span class="plat ${r.plat}">${PLAT[r.plat]}</span>
+            <div class="hint">${r.hapCov != null ? `${fmt1(r.hapCov)}× per haplotype · ${fmt1(r.cov)}× total` : ""}${r.pairsM ? `${r.hapCov != null ? " · " : ""}${fmt1(r.pairsM)} M read pairs` : ""}${r.hapCov != null && r.hapCov < 5 ? ` · ~${fmt((1 - Math.exp(-r.hapCov)) * 100)}% of each haplotype read at least once` : ""}</div></td>
+          <td class="num">${fmt(r.n)}</td><td class="num">${r.raw != null ? fmt1(r.raw) + " Gb" : "—"}</td><td class="num">${r.total != null ? fmt1(r.total) + " Gb" : "—"}</td>
+          <td class="num">${r.perUnit != null ? (r.perUnit >= 1 ? `${fmt(Math.floor(r.perUnit))} per ${esc(r.row.unit)}` : `${fmt1(1 / r.perUnit)} ${esc(r.row.unit)}s each`) : "—"}</td>
+          <td class="num">${money((r.seqCost || 0) + (r.libCost || 0))}<div class="hint">${r.libCost != null ? `libraries ${money(r.libCost)}` : ""}</div></td></tr>`).join("")}
+        ${C.plats.map(x => `<tr class="total"><td colspan="3">${PLAT[x.p]} total, rounded up to whole ${esc(x.row?.unit || "unit")}s</td><td class="num">${fmt1(x.gb)} Gb</td><td class="num">${x.row?.unit === "Gb" ? "" : `${fmt(x.whole)} ${esc(x.row?.unit || "")}${x.whole === 1 ? "" : "s"}`}</td><td class="num">${money(x.cost)}</td></tr>`).join("")}
+        <tr class="total"><td colspan="5">Total, sequencing and library prep</td><td class="num">${money(C.total)}</td></tr>
+      </tbody></table></div>
+      <div class="card-body" style="padding-top:8px"><p class="hint">Per-goal sequencing costs are each goal's share of the data. Lanes and SMRT Cells are bought whole, so the platform totals round up; leftover space can take other projects' samples.</p></div>`
+      : '<div class="empty">Tick one or more goals on the left.</div>'}
+    </div>
+    ${projectReadiness(C)}`;
+}
+// For a Muninn project: what DNA/RNA is already extracted and whether it looks ready
+function projectReadiness(C) {
+  if (!P.project_id) return "";
+  const samples = new Set(D.sampleProj.filter(x => x.project_id === P.project_id).map(x => x.sample_id));
+  const iso = D.qc.filter(q => samples.has(q.sample_id));
+  const plats = new Set(C.rows.map(r => r.plat));
+  const conc = q => Number(q.qubit_ng_ul ?? q.concentration_ng_ul) || 0, amt = q => Number(q.yield_ng) || (conc(q) * (Number(q.volume_ul) || 0));
+  const peak = q => Number(q.fragment_peak_kb ?? q.gel_peak_kb) || 0;
+  const dnaIso = iso.filter(q => !/rna/i.test(q.na_type || "")), rnaIso = iso.filter(q => /rna/i.test(q.na_type || ""));
+  const hifiOk = dnaIso.filter(q => peak(q) >= 15 && amt(q) >= 2000).length;
+  const illOk = dnaIso.filter(q => amt(q) >= 100).length;
+  const rnaOk = rnaIso.filter(q => Number(q.rin_or_din) >= 7).length;
+  const line = (label, okN, of, rule) => `<tr><td>${label}</td><td class="num"><b>${fmt(okN)}</b> of ${fmt(of)}</td><td class="hint" style="margin:0">${rule}</td></tr>`;
+  return `<div class="card"><div class="card-head"><h3>Samples in ${esc(projName(P.project_id))}</h3><span class="hint">${fmt(samples.size)} samples · ${fmt(iso.length)} extractions in Muninn</span></div>
+    ${iso.length ? `<div class="table-wrap"><table><tbody>
+      ${plats.has("pacbio") ? line("Look ready for HiFi", hifiOk, dnaIso.length, "Main peak ≥ 15 kb and ≥ 2 µg recorded") : ""}
+      ${plats.has("illumina") || plats.has("hic") ? line("Look ready for Illumina", illOk, dnaIso.length, "≥ 100 ng recorded") : ""}
+      ${rnaIso.length ? line("RNA with RIN ≥ 7", rnaOk, rnaIso.length, "") : ""}
+    </tbody></table></div><div class="card-body" style="padding-top:6px"><p class="hint">Based on the concentration, volume, fragment size and RIN/DIN saved in Muninn. Extractions with no QC count as not ready.</p></div>`
+    : `<div class="card-body"><p class="hint" style="margin:0">No extractions recorded for this project yet. Add them in Muninn and they'll show here with their QC.</p></div>`}</div>`;
+}
+function newPlan() { P = blankPlan(); render(); }
+function planFromRow(r) {
+  const b = blankPlan(), s = r.spec || {};
+  return { ...b, ...s, goals: { ...b.goals, ...(s.goals || {}) }, extra: { ...b.extra, ...(s.extra || {}) }, sel: s.sel || {},
+    plan_id: r.plan_id, name: r.name, project_id: r.project_id || "", notes: r.notes || "", status: r.status, created_by: r.created_by };
+}
+async function savePlan() {
+  if (!P.name.trim()) { toast("Give the plan a name first.", true); document.getElementById("p-name").focus(); return; }
+  const C = calcPlan();
+  const spec = { organism: P.organism, size: P.size, unit: P.unit, ploidy: P.ploidy, extra: P.extra, sel: P.sel, goals: P.goals };
+  const summary = { genome_gb: C.gs, platforms: C.plats.map(x => ({ platform: x.p, product: x.row?.name, gb: x.gb, units: x.whole, cost: x.cost })),
+    goals: C.rows.map(r => ({ goal: r.g.key, samples: r.n, gb_per_sample: r.raw, total_gb: r.total, cost: (r.seqCost || 0) + (r.libCost || 0) })), library_cost: C.libTotal, missing_prices: C.missing };
+  const row = { name: P.name.trim(), project_id: P.project_id || null, spec, summary, est_cost: C.rows.length ? Math.round(C.total * 100) / 100 : null, notes: P.notes || null };
+  if (P.plan_id) await ok(sb.from("seq_plans").update(row).eq("plan_id", P.plan_id));
+  else { const { data } = await ok(sb.from("seq_plans").insert({ ...row, created_by: currentUser.id }).select("plan_id, created_by, status").single()); Object.assign(P, data); }
+  await loadAll(); toast("Plan saved"); render();
+}
+
+// ── Saved plans ────────────────────────────────────────────────────────────────────────────────────
+const PLAN_STATUS = { draft: "Draft", proposed: "Proposed", approved: "Approved", sequencing: "Sequencing", done: "Done" };
+function renderPlans() {
+  const m = document.getElementById("main");
+  m.innerHTML = `<div class="page-head"><div><h2>Saved plans</h2><p>Everyone in the lab can see every plan. Open one to look at it or change it; you can change your own, and Michael can change any.</p></div>
+      <div class="tools"><button class="primary" onclick="newPlan();go('plan')">New plan</button></div></div>
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Plan</th><th>Project</th><th>Status</th><th class="num">Estimate</th><th>Made by</th><th>Updated</th><th></th></tr></thead><tbody>
+    ${D.plans.length ? D.plans.map(p => `<tr class="click" onclick="openPlan('${p.plan_id}')"><td><b>${esc(p.name)}</b><div class="hint">${esc(p.spec?.organism || "")}${p.summary?.goals?.length ? ` · ${p.summary.goals.length} goal${p.summary.goals.length === 1 ? "" : "s"}` : ""}</div></td>
+        <td>${esc(projName(p.project_id))}</td>
+        <td>${mine(p) ? `<select onclick="event.stopPropagation()" onchange="setPlanStatus('${p.plan_id}', this.value)" style="width:auto;padding:3px 6px;font-size:12.5px">${Object.entries(PLAN_STATUS).map(([k, l]) => `<option value="${k}"${p.status === k ? " selected" : ""}>${l}</option>`).join("")}</select>` : `<span class="badge">${PLAN_STATUS[p.status]}</span>`}</td>
+        <td class="num">${money(p.est_cost)}</td><td>${esc(userName(p.created_by))}</td><td>${esc((p.updated_at || "").slice(0, 10))}</td>
+        <td>${mine(p) ? `<button class="sm danger" onclick="event.stopPropagation();delPlan('${p.plan_id}')">Delete</button>` : ""}</td></tr>`).join("")
+      : '<tr><td colspan="7"><div class="empty">No saved plans yet.</div></td></tr>'}
+    </tbody></table></div></div>`;
+}
+function openPlan(id) { const r = D.plans.find(p => p.plan_id === id); if (!r) return; P = planFromRow(r); go("plan"); }
+async function setPlanStatus(id, status) { await ok(sb.from("seq_plans").update({ status }).eq("plan_id", id)); await loadAll(); toast("Status updated"); }
+async function delPlan(id) {
+  const p = D.plans.find(x => x.plan_id === id);
+  if (!confirm(`Delete the plan "${p?.name}"? This can't be undone. Pools made from it are kept.`)) return;
+  await ok(sb.from("seq_plans").delete().eq("plan_id", id)); if (P.plan_id === id) P = blankPlan(); await loadAll(); renderPlans(); toast("Plan deleted");
+}
+
+// ══ Pooling ═════════════════════════════════════════════════════════════════════════════════════════
+// Library molarity (nM) = ng/µL ÷ (660 g/mol per bp × average fragment bp) × 10⁶
+const molarity = (conc, bp) => conc > 0 && bp > 0 ? conc / (660 * bp) * 1e6 : null;
+function hamming(a, b) { if (!a || !b) return null; const n = Math.min(a.length, b.length); let d = 0; for (let i = 0; i < n; i++) if (a[i] !== b[i]) d++; return d; }
+let PL = null;   // the pool being edited
+function blankPool() { return { pool_id: null, name: "", plan_id: "", project_id: "", platform: "", read_config: "PE150", target_nm: 2, final_volume_ul: 30, status: "draft", notes: "", rows: [], created_by: null, run_id: null }; }
+function renderPool() { if (PL) return renderPoolEdit(); renderPoolList(); }
+function renderPoolList() {
+  const m = document.getElementById("main"), libsIn = id => D.poolLibs.filter(x => x.pool_id === id).length;
+  m.innerHTML = `<div class="page-head"><div><h2>Pooling</h2><p>Build a pooling sheet from Muninn libraries: add each library's index, concentration and fragment size, and the sheet works out how much of each to pool. Save it, print it, then record it as a sequencing run in Muninn.</p></div>
+      <div class="tools">${canWrite() ? '<button class="primary" onclick="PL=blankPool();renderPool()">New pool</button>' : ""}</div></div>
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Pool</th><th>Project</th><th class="num">Libraries</th><th>Platform</th><th>Status</th><th>Made by</th><th>Updated</th></tr></thead><tbody>
+    ${D.pools.length ? D.pools.map(p => `<tr class="click" onclick="openPool('${p.pool_id}')"><td><b>${esc(p.name)}</b>${p.plan_id ? `<div class="hint">Plan: ${esc(D.plans.find(x => x.plan_id === p.plan_id)?.name || "")}</div>` : ""}</td>
+        <td>${esc(projName(p.project_id))}</td><td class="num">${libsIn(p.pool_id)}</td><td>${esc(p.platform || "")}</td>
+        <td><span class="badge ${p.status === "draft" ? "" : p.status === "submitted" ? "blue" : "ok"}">${esc(p.status)}</span>${p.run_id ? ' <span class="badge ok">run in Muninn</span>' : ""}</td>
+        <td>${esc(userName(p.created_by))}</td><td>${esc((p.updated_at || "").slice(0, 10))}</td></tr>`).join("")
+      : '<tr><td colspan="7"><div class="empty">No pools yet.</div></td></tr>'}</tbody></table></div></div>`;
+}
+function openPool(id) {
+  const p = D.pools.find(x => x.pool_id === id); if (!p) return;
+  PL = { ...blankPool(), ...p, plan_id: p.plan_id || "", project_id: p.project_id || "", notes: p.notes || "",
+    rows: D.poolLibs.filter(x => x.pool_id === id).sort((a, b) => a.sort - b.sort).map(x => ({ ...x })) };
+  renderPool();
+}
+function poolCalc() {
+  const target = Number(PL.target_nm) || 0, vol = Number(PL.final_volume_ul) || 0;
+  const shareSum = PL.rows.reduce((t, r) => t + (Number(r.share) || 0), 0) || 1;
+  const rows = PL.rows.map(r => {
+    const nm = molarity(Number(r.conc_ng_ul), Number(r.avg_bp)), frac = (Number(r.share) || 0) / shareSum;
+    const v = nm ? target * vol * frac / nm : null;
+    return { r, nm, frac, v };
+  });
+  const sumV = rows.reduce((t, x) => t + (x.v || 0), 0);
+  // Highest pool concentration reachable if every library goes in neat with no buffer
+  const maxNm = rows.every(x => x.nm) && rows.length ? vol / rows.reduce((t, x) => t + vol * x.frac / x.nm, 0) : null;
+  // Index clashes: two libraries a sequencer can't tell apart
+  const clash = new Map();
+  for (let i = 0; i < PL.rows.length; i++) for (let j = i + 1; j < PL.rows.length; j++) {
+    const a = PL.rows[i], b = PL.rows[j]; let why = null;
+    const d7 = hamming(a.i7_seq, b.i7_seq), d5 = hamming(a.i5_seq, b.i5_seq);
+    if (d7 != null && (d5 != null || (!a.i5_seq && !b.i5_seq))) { if ((d7 + (d5 || 0)) < 3) why = (d7 + (d5 || 0)) === 0 ? "same indexes" : "indexes differ by fewer than 3 bases"; }
+    else if ((a.i7_name || b.i7_name) && a.i7_name === b.i7_name && (a.i5_name || "") === (b.i5_name || "")) why = "same index names";
+    if (why) { [a, b].forEach((x, k) => { const other = k ? a : b; const lib = D.libs.find(l => l.library_id === other.library_id); clash.set(x.library_id, `${why} as ${lib?.library_code || "another library"}`); }); }
+  }
+  const shared7 = new Set(); PL.rows.forEach((a, i) => PL.rows.forEach((b, j) => { if (i < j && a.i7_seq && a.i7_seq === b.i7_seq && a.i5_seq !== b.i5_seq) { shared7.add(a.library_id); shared7.add(b.library_id); } }));
+  return { rows, sumV, buffer: vol - sumV, maxNm, clash, shared7, target, vol };
+}
+function renderPoolEdit() {
+  const m = document.getElementById("main"), editable = canWrite() && (!PL.pool_id || mine(PL));
+  const plan = D.plans.find(p => p.plan_id === PL.plan_id), gs = plan ? planFromRow(plan) : null;
+  const kits = [...new Set(D.kits.map(k => k.kit))];
+  m.innerHTML = `
+    <div class="page-head"><div><h2>${PL.pool_id ? esc(PL.name) : "New pool"}</h2><p class="no-print">Pick libraries, fill in each one's index, Qubit concentration and average fragment size (from the TapeStation or Bioanalyzer, adapters included). "Share" is how much data a library should get compared with the others: 2 gets twice as much.</p></div>
+      <div class="tools no-print"><button onclick="PL=null;renderPool()">← All pools</button>
+        ${editable ? `<button class="primary" onclick="savePool()">${PL.pool_id ? "Save changes" : "Save pool"}</button>` : ""}
+        <button onclick="window.print()">Print sheet</button><button onclick="exportPool()">Download CSV</button></div></div>
+    ${PL.pool_id && !mine(PL) ? `<div class="callout info no-print">This is ${esc(userName(PL.created_by))}'s pool. Only they (or an admin) can change it.</div>` : ""}
+    <div class="print-only" style="margin-bottom:10px"><b>McKain Research Group · Pooling sheet</b> · printed ${new Date().toLocaleDateString()} · by ${esc(userName(PL.created_by) || myName)}</div>
+    <div class="card"><div class="card-body"><div class="grid">
+      <div><label>Pool name</label><input id="pl-name" value="${esc(PL.name)}" placeholder="e.g. JG resequencing pool 1"></div>
+      <div><label>Muninn project</label><select id="pl-proj"><option value="">None</option>${D.projects.map(p => `<option value="${p.project_id}"${PL.project_id === p.project_id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div><label>Plan</label><select id="pl-plan"><option value="">None</option>${D.plans.map(p => `<option value="${p.plan_id}"${PL.plan_id === p.plan_id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div><label>Platform / product</label><input id="pl-plat" list="plat-list" value="${esc(PL.platform)}" placeholder="Illumina NovaSeq X, 25B lane"><datalist id="plat-list">${D.prices.filter(r => r.category === "sequencing").map(r => `<option value="${esc(r.name)}">`).join("")}</datalist></div>
+      <div><label>Read setup</label><input id="pl-rc" value="${esc(PL.read_config)}" placeholder="PE150"></div>
+      <div><label>Final pool (nM)</label><input id="pl-nm" type="number" min="0" step="any" value="${esc(PL.target_nm)}"></div>
+      <div><label>Final volume (µL)</label><input id="pl-vol" type="number" min="0" step="any" value="${esc(PL.final_volume_ul)}"></div>
+      <div><label>Status</label><select id="pl-status">${["draft", "submitted", "sequenced"].map(s => `<option${PL.status === s ? " selected" : ""}>${s}</option>`).join("")}</select></div>
+      <div class="full"><label>Notes</label><input id="pl-notes" value="${esc(PL.notes)}" placeholder="Provider requirements, submission ID, who's taking it…"></div>
+    </div></div></div>
+    <div id="pool-warn"></div>
+    <div class="card"><div class="card-head"><h3>Libraries <span class="hint" id="pl-count"></span></h3>
+      ${editable ? `<div class="tools no-print"><button class="sm" onclick="pickLibraries()">+ Add libraries from Muninn</button>${kits.length ? `<button class="sm" onclick="autoIndex()">Fill indexes from a plate</button>` : ""}</div>` : ""}</div>
+      <div class="table-wrap"><table class="pool-table"><thead><tr><th>#</th><th>Library</th><th>Index (plate · well)</th><th>i7</th><th>i5</th><th class="num">ng/µL</th><th class="num">Avg bp</th><th class="num">nM</th><th class="num">Share</th><th class="num">µL to add</th>${gs ? `<th class="num" title="How much each library gets if this pool has a whole lane or cell to itself">If pool gets 1 ${esc(D.prices.find(r => r.name === PL.platform && r.category === "sequencing")?.unit || "unit")}</th>` : ""}<th class="no-print"></th></tr></thead>
+      <tbody id="pl-body"></tbody></table></div></div>
+    ${PL.pool_id && editable ? `<div class="card no-print"><div class="card-head"><h3>Send to Muninn</h3></div><div class="card-body">
+      <div class="tools"><button onclick="fillLibraries()">Copy indexes and molarity into the Muninn libraries</button>
+        ${PL.run_id ? '<span class="badge ok">Recorded as a sequencing run in Muninn</span>' : `<button class="primary" onclick="recordRun()">Record as a sequencing run</button>`}</div>
+      <p class="hint">Copying fills in each library's i7, i5 and molarity in Muninn, only where they're still empty. Recording makes a sequencing run in Muninn with a placeholder data row for every library here, so reads can be attached when they come back, and marks the pool submitted.</p></div></div>` : ""}`;
+  const bind = (id, k) => { const el = document.getElementById(id); el.oninput = el.onchange = () => { PL[k] = el.value; drawPoolBody(); }; };
+  bind("pl-name", "name"); bind("pl-proj", "project_id"); bind("pl-plat", "platform"); bind("pl-rc", "read_config"); bind("pl-nm", "target_nm"); bind("pl-vol", "final_volume_ul"); bind("pl-status", "status"); bind("pl-notes", "notes");
+  document.getElementById("pl-plan").onchange = e => { PL.plan_id = e.target.value; const p = D.plans.find(x => x.plan_id === PL.plan_id); if (p && !PL.project_id) PL.project_id = p.project_id || ""; renderPoolEdit(); };
+  drawPoolBody();
+}
+function drawPoolBody() {
+  const C = poolCalc(), body = document.getElementById("pl-body"); if (!body) return;
+  const editable = canWrite() && (!PL.pool_id || mine(PL)), dis = editable ? "" : " disabled";
+  const plan = D.plans.find(p => p.plan_id === PL.plan_id), pp = plan ? planFromRow(plan) : null;
+  const unit = D.prices.find(r => r.name === PL.platform && r.category === "sequencing");
+  const gs = pp ? (() => { const keep = P; P = pp; const g = genomeGb(); P = keep; return g; })() : null;
+  const kitOpts = r => `<option value="">—</option>` + D.kits.map(k => `<option value="${k.index_id}"${r.index_id === k.index_id ? " selected" : ""}>${esc(k.kit)} · ${esc(k.well)}</option>`).join("");
+  body.innerHTML = PL.rows.length ? C.rows.map((x, i) => {
+    const r = x.r, lib = D.libs.find(l => l.library_id === r.library_id), cl = C.clash.get(r.library_id);
+    const expGb = unit?.yield_gb ? unit.yield_gb * x.frac : null;
+    return `<tr class="${cl ? "clash" : ""}" data-i="${i}"><td class="hint">${i + 1}</td>
+      <td><b class="mono">${esc(lib?.library_code || r.library_id)}</b><div class="hint">${esc(lib ? libSpecies(lib) : "")}${cl ? ` · <span style="color:var(--danger)">${esc(cl)}</span>` : C.shared7.has(r.library_id) ? ' · <span style="color:var(--amber)">shares its i7 (fine only with dual indexes)</span>' : ""}</div></td>
+      <td>${D.kits.length ? `<select data-f="index_id"${dis}>${kitOpts(r)}</select>` : '<span class="hint">no plates yet</span>'}</td>
+      <td><input class="seq" data-f="i7_seq" value="${esc(r.i7_seq || "")}" placeholder="${esc(r.i7_name || "sequence")}"${dis}></td>
+      <td><input class="seq" data-f="i5_seq" value="${esc(r.i5_seq || "")}" placeholder="${esc(r.i5_name || "sequence")}"${dis}></td>
+      <td class="num"><input class="n" type="number" step="any" min="0" data-f="conc_ng_ul" value="${esc(r.conc_ng_ul ?? "")}"${dis}></td>
+      <td class="num"><input class="n" type="number" step="1" min="0" data-f="avg_bp" value="${esc(r.avg_bp ?? "")}"${dis}></td>
+      <td class="num">${x.nm ? fmt1(x.nm) : "—"}</td>
+      <td class="num"><input class="n" type="number" step="any" min="0" data-f="share" value="${esc(r.share ?? 1)}" style="width:58px"${dis}></td>
+      <td class="num"><b>${x.v != null ? fmt(x.v, 2) : "—"}</b>${x.v != null && x.v < 1 ? `<div class="hint" style="color:var(--amber)">dilute 1:${Math.ceil(2 / x.v)} first</div>` : ""}</td>
+      ${pp ? `<td class="num">${expGb != null ? `${fmt1(expGb)} Gb${gs ? `<div class="hint">${fmt1(expGb / gs)}× total</div>` : ""}` : "—"}</td>` : ""}
+      <td class="no-print">${editable ? `<button class="sm" data-rm="${i}" title="Remove">✕</button>` : ""}</td></tr>`;
+  }).join("") + `<tr class="total"><td colspan="9">Libraries ${fmt(C.sumV, 2)} µL + buffer (EB) ${C.buffer >= 0 ? fmt(C.buffer, 2) : "—"} µL</td><td class="num">${fmt(C.vol, 1)} µL</td>${pp ? "<td></td>" : ""}<td class="no-print"></td></tr>`
+    : `<tr><td colspan="12"><div class="empty">No libraries yet.${editable ? " Use “Add libraries from Muninn”." : ""}</div></td></tr>`;
+  document.getElementById("pl-count").textContent = PL.rows.length ? `${PL.rows.length}` : "";
+  const warn = [];
+  if (C.clash.size) warn.push(["bad", `${C.clash.size} libraries have index clashes (highlighted). The sequencer can't separate them: change an index before pooling.`]);
+  if (C.buffer < -0.001) warn.push(["bad", `The libraries need ${fmt(C.sumV, 1)} µL, more than the ${fmt(C.vol, 1)} µL pool. Lower the final nM (at most ${fmt(C.maxNm, 2)} nM here) or raise the volume.`]);
+  const missing = PL.rows.filter(r => !molarity(Number(r.conc_ng_ul), Number(r.avg_bp))).length;
+  if (missing) warn.push(["", `${missing} librar${missing === 1 ? "y needs" : "ies need"} a concentration and fragment size before volumes can be worked out.`]);
+  const low = C.rows.filter(x => x.v != null && x.v < 1).length;
+  if (low) warn.push(["", `${low} volume${low === 1 ? " is" : "s are"} under 1 µL, too small to pipette accurately. Dilute those libraries as suggested and enter the new concentration.`]);
+  document.getElementById("pool-warn").innerHTML = warn.map(([c, t]) => `<div class="callout ${c} no-print">${t}</div>`).join("");
+  body.querySelectorAll("[data-f]").forEach(el => el.onchange = () => {
+    const r = PL.rows[+el.closest("tr").dataset.i], f = el.dataset.f;
+    if (f === "index_id") { const k = D.kits.find(x => x.index_id === +el.value); r.index_id = k ? k.index_id : null; if (k) Object.assign(r, { i7_name: k.i7_name, i7_seq: k.i7_seq, i5_name: k.i5_name, i5_seq: k.i5_seq }); }
+    else if (f === "i7_seq" || f === "i5_seq") r[f] = el.value.toUpperCase().replace(/[^ACGTN]/g, "");
+    else r[f] = el.value === "" ? null : Number(el.value);
+    drawPoolBody();
+  });
+  body.querySelectorAll("[data-rm]").forEach(b => b.onclick = () => { PL.rows.splice(+b.dataset.rm, 1); drawPoolBody(); });
+}
+function pickLibraries() {
+  const inPool = new Set(PL.rows.map(r => r.library_id));
+  const list = q => D.libs.filter(l => !inPool.has(l.library_id) && (!document.getElementById("lp-proj")?.value || libProjects(l).includes(document.getElementById("lp-proj").value))
+    && (!q || (l.library_code + " " + libSpecies(l)).toLowerCase().includes(q.toLowerCase()))).slice(0, 400);
+  modal("Add libraries from Muninn", `<div class="grid" style="margin-bottom:10px"><div><label>Project</label><select id="lp-proj"><option value="">All projects</option>${D.projects.map(p => `<option value="${p.project_id}"${PL.project_id === p.project_id ? " selected" : ""}>${esc(p.name)}</option>`).join("")}</select></div>
+      <div><label>Search</label><input id="lp-q" placeholder="Library code or species"></div></div>
+    <div class="tools" style="margin-bottom:6px"><button class="sm" id="lp-all">Tick all shown</button><span class="hint" id="lp-n"></span></div>
+    <div class="pick-list" id="lp-list"></div>`, () => {
+      const ids = [...document.querySelectorAll("#lp-list input:checked")].map(c => c.value);
+      if (!ids.length) return mErr("Tick at least one library.");
+      ids.forEach(id => { const l = D.libs.find(x => x.library_id === id);
+        PL.rows.push({ library_id: id, index_id: null, i7_name: null, i7_seq: /^[ACGTN]+$/.test(l?.index_i7 || "") ? l.index_i7 : null, i5_name: null, i5_seq: /^[ACGTN]+$/.test(l?.index_i5 || "") ? l.index_i5 : null,
+          conc_ng_ul: null, avg_bp: l?.insert_size || null, share: 1, notes: null }); });
+      closeModal(); drawPoolBody();
+    }, "Add", { wide: true });
+  const draw = () => { const L = list(document.getElementById("lp-q").value.trim());
+    document.getElementById("lp-list").innerHTML = L.length ? L.map(l => `<label><input type="checkbox" value="${l.library_id}"><span class="mono">${esc(l.library_code)}</span><span class="hint" style="margin:0">${esc(libSpecies(l))}${l.na_isolations?.application ? " · " + esc(l.na_isolations.application) : ""}${l.placeholder ? " · placeholder" : ""}</span></label>`).join("") : '<div class="empty">No libraries match.</div>';
+    document.getElementById("lp-n").textContent = `${L.length} shown${L.length === 400 ? " (first 400; narrow the search)" : ""}`; };
+  document.getElementById("lp-proj").onchange = draw; document.getElementById("lp-q").oninput = draw;
+  document.getElementById("lp-all").onclick = () => document.querySelectorAll("#lp-list input").forEach(c => c.checked = true);
+  draw();
+}
+function autoIndex() {
+  const kits = [...new Set(D.kits.map(k => k.kit))];
+  modal("Fill indexes from a plate", `<p class="hint" style="margin-top:0">Gives the libraries consecutive wells from a plate, in the order listed (A1, B1, C1… down each column). Libraries that already have an index are skipped.</p>
+    <div class="grid"><div><label>Plate</label><select id="ai-kit">${kits.map(k => `<option>${esc(k)}</option>`).join("")}</select></div><div><label>Start at well</label><input id="ai-well" value="A1"></div></div>`, () => {
+      const kit = document.getElementById("ai-kit").value, start = document.getElementById("ai-well").value.trim().toUpperCase();
+      const wells = D.kits.filter(k => k.kit === kit).sort((a, b) => wellOrder(a.well) - wellOrder(b.well));
+      let i = wells.findIndex(w => w.well.toUpperCase() === start); if (i < 0) return mErr("That well isn't on this plate.");
+      const used = new Set(PL.rows.map(r => r.index_id).filter(Boolean));
+      for (const r of PL.rows) { if (r.index_id || r.i7_seq) continue; while (i < wells.length && used.has(wells[i].index_id)) i++; if (i >= wells.length) break;
+        const k = wells[i++]; Object.assign(r, { index_id: k.index_id, i7_name: k.i7_name, i7_seq: k.i7_seq, i5_name: k.i5_name, i5_seq: k.i5_seq }); }
+      closeModal(); drawPoolBody();
+    }, "Fill");
+}
+const wellOrder = w => { const m = /^([A-P])(\d+)$/i.exec(w || ""); return m ? (Number(m[2]) - 1) * 16 + (m[1].toUpperCase().charCodeAt(0) - 65) : 9999; };
+async function savePool() {
+  if (!PL.name.trim()) { toast("Give the pool a name first.", true); return; }
+  const row = { name: PL.name.trim(), plan_id: PL.plan_id || null, project_id: PL.project_id || null, platform: PL.platform || null, read_config: PL.read_config || null,
+    target_nm: Number(PL.target_nm) || null, final_volume_ul: Number(PL.final_volume_ul) || null, status: PL.status, notes: PL.notes || null };
+  if (PL.pool_id) await ok(sb.from("seq_pools").update(row).eq("pool_id", PL.pool_id));
+  else { const { data } = await ok(sb.from("seq_pools").insert({ ...row, created_by: currentUser.id }).select("pool_id, created_by").single()); PL.pool_id = data.pool_id; PL.created_by = data.created_by; }
+  // Replace the pool's library rows with what's on screen
+  const rows = PL.rows.map((r, i) => ({ pool_id: PL.pool_id, library_id: r.library_id, index_id: r.index_id || null, i7_name: r.i7_name || null, i7_seq: r.i7_seq || null,
+    i5_name: r.i5_name || null, i5_seq: r.i5_seq || null, conc_ng_ul: r.conc_ng_ul ?? null, avg_bp: r.avg_bp ? Math.round(r.avg_bp) : null, share: Number(r.share) || 1, notes: r.notes || null, sort: i }));
+  const keep = new Set(rows.map(r => r.library_id));
+  const gone = D.poolLibs.filter(x => x.pool_id === PL.pool_id && !keep.has(x.library_id)).map(x => x.library_id);
+  if (gone.length) await ok(sb.from("seq_pool_libraries").delete().eq("pool_id", PL.pool_id).in("library_id", gone));
+  if (rows.length) await ok(sb.from("seq_pool_libraries").upsert(rows, { onConflict: "pool_id,library_id" }));
+  await loadAll(); openPool(PL.pool_id); toast("Pool saved");
+}
+async function fillLibraries() {
+  if (!confirm("Copy this pool's indexes and molarity into the Muninn library records? Only empty fields are filled; nothing already there is changed.")) return;
+  await savePool();
+  const { data, error } = await sb.rpc("fill_libraries_from_pool", { p_pool: PL.pool_id });
+  if (error) return toast(error.message, true);
+  await loadAll(); toast(`${data} librar${data === 1 ? "y" : "ies"} updated in Muninn`);
+}
+async function recordRun() {
+  if (!PL.platform) { toast("Fill in the platform first.", true); return; }
+  if (!confirm(`Record "${PL.name}" as a sequencing run in Muninn, with ${PL.rows.length} placeholder data rows? Do this when the pool goes to the sequencer.`)) return;
+  await savePool();
+  const { error } = await sb.rpc("record_pool_as_run", { p_pool: PL.pool_id });
+  if (error) return toast(error.message, true);
+  await loadAll(); openPool(PL.pool_id); toast("Recorded in Muninn");
+}
+function exportPool() {
+  const C = poolCalc();
+  const head = ["position", "library_code", "species", "index_plate_well", "i7_name", "i7_seq", "i5_name", "i5_seq", "conc_ng_ul", "avg_bp", "molarity_nM", "share", "volume_ul"];
+  const lines = C.rows.map((x, i) => { const r = x.r, l = D.libs.find(y => y.library_id === r.library_id), k = D.kits.find(y => y.index_id === r.index_id);
+    return [i + 1, l?.library_code, l ? libSpecies(l) : "", k ? `${k.kit} ${k.well}` : "", r.i7_name, r.i7_seq, r.i5_name, r.i5_seq, r.conc_ng_ul, r.avg_bp, x.nm?.toFixed(3), r.share, x.v?.toFixed(2)]; });
+  lines.push(["", "buffer (EB)", "", "", "", "", "", "", "", "", "", "", C.buffer.toFixed(2)]);
+  download(`${(PL.name || "pool").replace(/[^\w]+/g, "-")}.csv`, "\ufeff" + [head, ...lines].map(r => r.map(csvCell).join(",")).join("\n") + "\n");
+}
+
+// ══ Coverage guide (for students) ═══════════════════════════════════════════════════════════════════
+function renderGuide() {
+  document.getElementById("main").innerHTML = `
+    <div class="page-head"><div><h2>Coverage guide</h2><p>How much sequencing a question needs, and why. Use it to sanity-check a plan before asking Michael.</p></div></div>
+    <div class="two"><div>
+    <div class="card"><div class="card-head"><h3>The basic idea</h3></div><div class="card-body">
+      <p style="margin-top:0"><b>Coverage</b> (or depth) is how many times, on average, each base of the genome is read.</p>
+      <div class="formula">coverage = (number of reads × read length) ÷ genome size</div>
+      <p>Example: 100 million read pairs of 2 × 150 bp is 30 Gb of data. On a 1 Gb genome that's <b>30×</b>.</p>
+      <p><b>Reads land randomly</b>, so some bases get fewer reads than average. At an average of <i>C</i>×, the share of bases read at least once is about 1 − e<sup>−C</sup>: 63% at 1×, 95% at 3×, 99.3% at 5×. That's why calling every genotype needs far more than 1×.</p>
+      <p><b>Ploidy matters.</b> Each chromosome copy gets its share of the reads: at 30× total a diploid gets 15× per copy, and a tetraploid only 7.5×. So this planner sets coverage <b>per haplotype</b> and multiplies by ploidy.</p>
+      <p style="margin-bottom:0"><b>Genome size:</b> use one chromosome set (monoploid, 1Cx). A 1C value in picograms × 978 gives Mb; divide by ploidy/2 for one set.</p>
+    </div></div>
+    <div class="card"><div class="card-head"><h3>Data per sample</h3></div><div class="card-body">
+      <div class="formula">Gb needed = genome size (Gb) × coverage per haplotype × ploidy ÷ (1 − losses)</div>
+      <p class="hint">Losses: PCR duplicates, adapters, low-quality reads and uneven pooling. Plan for 15–25% on Illumina.</p>
+      <div class="formula">samples per lane = lane yield (Gb) ÷ Gb per sample</div>
+    </div></div>
+    </div><div>
+    <div class="card"><div class="card-head"><h3>What different questions need</h3></div><div class="table-wrap"><table class="guide-table"><thead><tr><th>Question</th><th>Typical depth</th><th>Platform</th></tr></thead><tbody>
+      ${GOALS.filter(g => !g.custom).map(g => `<tr><td>${esc(g.title)}</td><td>${g.mode === "hap" ? `${g.def}× per haplotype<div class="hint">${g.def * 2}× for a diploid</div>` : g.mode === "gb" ? `${g.def} Gb per sample` : `${g.def} M read pairs per sample`}</td><td><span class="plat ${g.platform}" style="margin:0">${PLAT[g.platform]}</span></td></tr>
+        <tr><td colspan="3" class="hint" style="padding-top:0">${g.why.replace(/<b>Why this much:<\/b>\s*/, "")}${g.dna ? `<br><b>Needs:</b> ${g.dna}` : ""}</td></tr>`).join("")}
+    </tbody></table></div></div>
+    </div></div>`;
+}
+
+// ══ Prices and index plates (admins edit) ══════════════════════════════════════════════════════════
+function renderPrices() {
+  const m = document.getElementById("main"), ad = isAdmin();
+  const kits = [...new Set(D.kits.map(k => k.kit))];
+  m.innerHTML = `
+    <div class="page-head"><div><h2>Prices & indexes</h2><p>${ad ? "What sequencing and library prep cost, and how much data each unit gives. The planner uses these. Update them when a new quote comes in." : "What the planner uses for costs. Only admins can change these."}</p></div>
+      ${ad ? '<div class="tools"><button class="primary" onclick="editPrice()">+ Add a price</button></div>' : ""}</div>
+    <div class="card"><div class="table-wrap"><table><thead><tr><th>Item</th><th>Kind</th><th>Unit</th><th class="num">Price</th><th class="num">Data per unit</th><th>Provider / notes</th><th>Updated</th></tr></thead><tbody>
+      ${D.prices.map(r => `<tr class="${ad ? "click" : ""}"${ad ? ` onclick="editPrice(${r.price_id})"` : ""}${r.active ? "" : ' style="opacity:.55"'}><td><b>${esc(r.name)}</b><span class="plat ${r.platform}">${PLAT[r.platform]}</span></td>
+        <td>${r.category === "library" ? "Library prep" : "Sequencing"}</td><td>${esc(r.unit)}</td><td class="num">${r.price != null ? "$" + fmt(r.price, 2) : '<span class="badge warn">not set</span>'}</td>
+        <td class="num">${r.yield_gb ? fmt(r.yield_gb) + " Gb" : ""}${r.read_length ? `<div class="hint">${r.read_length} bp reads</div>` : ""}</td>
+        <td class="hint" style="white-space:normal;max-width:320px">${esc([r.provider, r.notes].filter(Boolean).join(" · "))}</td><td class="hint">${esc((r.updated_at || "").slice(0, 10))}</td></tr>`).join("") || '<tr><td colspan="7"><div class="empty">No prices yet.</div></td></tr>'}
+    </tbody></table></div></div>
+    <div class="card"><div class="card-head"><h3>Index plates</h3>${ad ? '<button class="sm" onclick="importKit()">Import a plate (CSV)</button>' : ""}</div>
+      ${kits.length ? `<div class="table-wrap"><table><thead><tr><th>Plate</th><th class="num">Wells</th><th></th></tr></thead><tbody>${kits.map(k => `<tr><td><b>${esc(k)}</b></td><td class="num">${D.kits.filter(x => x.kit === k).length}</td>
+        <td><button class="sm" onclick="viewKit('${esc(k).replace(/'/g, "\\'")}')">View</button>${ad ? ` <button class="sm danger" onclick="delKit('${esc(k).replace(/'/g, "\\'")}')">Remove</button>` : ""}</td></tr>`).join("")}</tbody></table></div>`
+      : `<div class="card-body"><p class="hint" style="margin:0">No index plates yet. ${ad ? "Import one from the kit maker's index CSV (for NEBNext, the index sequence file on the product page)." : "Michael can import them; until then, type index sequences into the pooling sheet."}</p></div>`}</div>`;
+}
+function editPrice(id) {
+  const r = id ? D.prices.find(x => x.price_id === id) : { category: "sequencing", platform: "illumina", unit: "lane", active: true };
+  modal(id ? "Edit price" : "Add a price", `<div class="grid">
+      <div class="full"><label>Name</label><input id="pr-name" value="${esc(r.name || "")}" placeholder="e.g. Psomagen NovaSeq X 25B lane, PE150"></div>
+      <div><label>Kind</label><select id="pr-cat"><option value="sequencing"${r.category === "sequencing" ? " selected" : ""}>Sequencing</option><option value="library"${r.category === "library" ? " selected" : ""}>Library prep</option></select></div>
+      <div><label>Platform</label><select id="pr-plat">${Object.entries(PLAT).map(([k, l]) => `<option value="${k}"${r.platform === k ? " selected" : ""}>${l}</option>`).join("")}</select></div>
+      <div><label>Unit</label><input id="pr-unit" value="${esc(r.unit || "")}" placeholder="lane, SMRT Cell, Gb, sample"></div>
+      <div><label>Price ($ per unit)</label><input id="pr-price" type="number" step="0.01" min="0" value="${esc(r.price ?? "")}"></div>
+      <div><label>Data per unit (Gb)</label><input id="pr-yield" type="number" step="any" min="0" value="${esc(r.yield_gb ?? "")}" placeholder="sequencing only"></div>
+      <div><label>Read length (bp)</label><input id="pr-rl" type="number" step="1" min="0" value="${esc(r.read_length ?? "")}" placeholder="150 for PE150"></div>
+      <div><label>Provider</label><input id="pr-prov" value="${esc(r.provider || "")}"></div>
+      <div><label>Show in planner</label><select id="pr-act"><option value="1"${r.active ? " selected" : ""}>Yes</option><option value="0"${r.active ? "" : " selected"}>No (retired)</option></select></div>
+      <div class="full"><label>Notes</label><textarea id="pr-notes">${esc(r.notes || "")}</textarea></div></div>`, async () => {
+      const v = id => document.getElementById(id).value.trim(), n = id => v(id) === "" ? null : Number(v(id));
+      const row = { name: v("pr-name"), category: v("pr-cat"), platform: v("pr-plat"), unit: v("pr-unit") || "unit", price: n("pr-price"), yield_gb: n("pr-yield"), read_length: n("pr-rl"), provider: v("pr-prov") || null, notes: v("pr-notes") || null, active: v("pr-act") === "1" };
+      if (row.name.length < 2) return mErr("Give it a name.");
+      if (row.category === "sequencing" && row.unit !== "Gb" && !row.yield_gb) return mErr("Sequencing prices need the data per unit, so the planner can count lanes or cells.");
+      if (id) await ok(sb.from("seq_prices").update(row).eq("price_id", id)); else await ok(sb.from("seq_prices").insert({ ...row, sort: (D.prices.at(-1)?.sort || 0) + 10 }));
+      closeModal(); await loadAll(); renderPrices(); toast("Saved");
+    }, "Save", { left: id ? `<button class="danger left" onclick="delPrice(${id})">Delete</button>` : "" });
+}
+async function delPrice(id) { if (!confirm("Delete this price? Saved plans keep their numbers; to keep it for reference, set it to retired instead.")) return; await ok(sb.from("seq_prices").delete().eq("price_id", id)); closeModal(); await loadAll(); renderPrices(); }
+function viewKit(kit) {
+  const w = D.kits.filter(k => k.kit === kit).sort((a, b) => wellOrder(a.well) - wellOrder(b.well));
+  modal(kit, `<div class="table-wrap" style="max-height:60vh;overflow:auto"><table><thead><tr><th>Well</th><th>i7</th><th>i7 sequence</th><th>i5</th><th>i5 sequence</th></tr></thead><tbody>${w.map(k => `<tr><td>${esc(k.well)}</td><td>${esc(k.i7_name || "")}</td><td class="mono">${esc(k.i7_seq || "")}</td><td>${esc(k.i5_name || "")}</td><td class="mono">${esc(k.i5_seq || "")}</td></tr>`).join("")}</tbody></table></div>`, null, null, { wide: true });
+}
+async function delKit(kit) {
+  if (!confirm(`Remove the plate "${kit}"? Pools that used it keep their index sequences.`)) return;
+  await ok(sb.from("seq_index_kits").delete().eq("kit", kit)); await loadAll(); renderPrices(); toast("Plate removed");
+}
+function importKit() {
+  modal("Import an index plate", `<div class="field"><label>Plate name</label><input id="ik-name" placeholder="e.g. NEBNext UDI Set 1 (E6440S)"></div>
+    <div class="field"><label>Paste the CSV (or choose a file)</label><textarea id="ik-text" style="min-height:160px;font-family:var(--mono);font-size:12px" placeholder="well,i7_name,i7_seq,i5_name,i5_seq&#10;A1,i701,ATTACTCG,i501,TATAGCCT"></textarea>
+      <input type="file" id="ik-file" accept=".csv,.txt,.tsv" style="margin-top:6px"></div>
+    <p class="hint">Needs a header row with columns for the well and the i7 and i5 sequences. Column names like <code>well</code>, <code>i7_seq</code> / <code>i7 index</code> / <code>index</code>, <code>i5_seq</code> / <code>i5 index</code> / <code>index2</code> are recognised. Note which i5 orientation the file uses (forward or reverse-complement); keep plates consistent.</p>
+    <div id="ik-prev"></div>`, async () => {
+      const kit = document.getElementById("ik-name").value.trim(); if (kit.length < 2) return mErr("Name the plate.");
+      const rows = parseKit(document.getElementById("ik-text").value); if (!rows.ok) return mErr(rows.err);
+      const { error } = await sb.from("seq_index_kits").upsert(rows.rows.map(r => ({ ...r, kit })), { onConflict: "kit,well" });
+      if (error) return mErr(error.message);
+      closeModal(); await loadAll(); renderPrices(); toast(`${rows.rows.length} wells imported`);
+    }, "Import", { wide: true });
+  const prev = () => { const r = parseKit(document.getElementById("ik-text").value); document.getElementById("ik-prev").innerHTML = !document.getElementById("ik-text").value.trim() ? "" : r.ok ? `<p class="msg ok">${r.rows.length} wells read. First: ${esc(r.rows[0].well)} ${esc(r.rows[0].i7_seq || "")} / ${esc(r.rows[0].i5_seq || "")}</p>` : `<p class="msg error">${esc(r.err)}</p>`; };
+  document.getElementById("ik-text").oninput = prev;
+  document.getElementById("ik-file").onchange = async e => { const f = e.target.files[0]; if (f) { document.getElementById("ik-text").value = await f.text(); if (!document.getElementById("ik-name").value) document.getElementById("ik-name").value = f.name.replace(/\.\w+$/, ""); prev(); } };
+}
+function parseKit(text) {
+  const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean); if (lines.length < 2) return { ok: false, err: "Paste a header row and at least one well." };
+  const sep = lines[0].includes("\t") ? "\t" : ",", split = l => l.split(sep).map(c => c.replace(/^"|"$/g, "").trim());
+  const h = split(lines[0]).map(c => c.toLowerCase().replace(/[^a-z0-9]/g, ""));
+  const find = (...names) => h.findIndex(c => names.includes(c));
+  const iw = find("well", "wellposition", "position"), i7s = find("i7seq", "i7sequence", "i7index", "i7", "index", "index1", "i7bases", "i7indexsequence"),
+        i5s = find("i5seq", "i5sequence", "i5index", "i5", "index2", "i5bases", "i5indexsequence"), i7n = find("i7name", "i7indexname", "i7id", "index1name"), i5n = find("i5name", "i5indexname", "i5id", "index2name");
+  if (iw < 0) return { ok: false, err: "Couldn't find a well column." };
+  if (i7s < 0) return { ok: false, err: "Couldn't find an i7 sequence column." };
+  const rows = [], seen = new Set();
+  for (const l of lines.slice(1)) {
+    const c = split(l), well = (c[iw] || "").toUpperCase().replace(/^([A-P])0?(\d+)$/, "$1$2"); if (!/^[A-P]\d{1,2}$/.test(well)) continue;
+    if (seen.has(well)) return { ok: false, err: `Well ${well} appears twice.` }; seen.add(well);
+    const s7 = (c[i7s] || "").toUpperCase().replace(/[^ACGTN]/g, ""), s5 = i5s >= 0 ? (c[i5s] || "").toUpperCase().replace(/[^ACGTN]/g, "") : "";
+    rows.push({ well, i7_seq: s7 || null, i5_seq: s5 || null, i7_name: i7n >= 0 ? c[i7n] || null : null, i5_name: i5n >= 0 ? c[i5n] || null : null });
+  }
+  return rows.length ? { ok: true, rows } : { ok: false, err: "No rows with a well like A1 were found." };
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────────────────────────
+document.getElementById("login-btn").onclick = doLogin;
+document.getElementById("code-btn").onclick = verifyCode;
+document.getElementById("pw-toggle").onclick = togglePassword;
+document.getElementById("pending-logout").onclick = doLogout;
+document.getElementById("email").onkeydown = e => { if (e.key === "Enter") doLogin(); };
+document.getElementById("otp-code").onkeydown = e => { if (e.key === "Enter") verifyCode(); };
+initAuth();
+</script>
+</body>
+</html>
